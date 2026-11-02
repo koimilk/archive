@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archive</title>
+<style>
+:root{--bg:#fafaf9;--panel:#fff;--ink:#1c1c1e;--mute:#76767c;--line:#e7e6e3;--hover:#f1f0ee;--accent:#2f5d50}
+@media (prefers-color-scheme:dark){:root{--bg:#141415;--panel:#1b1b1d;--ink:#ececee;--mute:#8b8b92;--line:#2a2a2d;--hover:#232326;--accent:#7fc4ae}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 20px 60px}
+header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:20px;font-weight:650;margin:0 auto 0 0;letter-spacing:-.01em}
+input,select,button{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+input{width:240px;max-width:100%}
+input:focus,select:focus,button:focus-visible,a:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{cursor:pointer}button:hover{background:var(--hover)}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:10px;color:var(--mute)}
+.crumbs a{color:var(--ink);text-decoration:none;padding:3px 6px;border-radius:6px}.crumbs a:hover{background:var(--hover)}
+.crumbs span.cur{color:var(--ink);font-weight:600;padding:3px 6px}
+.list{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.row{display:grid;grid-template-columns:36px 1fr 90px 120px;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer;color:inherit;text-decoration:none}
+.row:first-child{border-top:0}.row:hover{background:var(--hover)}
+.name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub{font-size:12px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{color:var(--mute);font-size:13px;text-align:right}
+.ico{width:32px;height:32px;border-radius:7px;display:grid;place-items:center;font-size:10px;font-weight:700;background:var(--hover);color:var(--mute);overflow:hidden}
+.ico.folder{background:var(--accent);color:#fff}
+.ico[data-k=audio]{background:#e8e3f4;color:#5b3f9e}.ico[data-k=video]{background:#f6e2e2;color:#a23b3b}
+.ico[data-k=image]{background:#e0eef6;color:#2d6a8f}.ico[data-k=doc]{background:#f3ead6;color:#8a6516}
+.ico[data-k=zip]{background:#e6ecdc;color:#52672f}
+@media (prefers-color-scheme:dark){.ico[data-k]{filter:brightness(.8) saturate(.9)}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.grid .row{display:block;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.grid .row:first-child{border-top:1px solid var(--line)}
+.grid .ico{width:100%;height:110px;border-radius:8px;font-size:14px;margin-bottom:8px}
+.grid .ico img{width:100%;height:100%;object-fit:cover}
+.grid .meta{text-align:left}
+.grid .hide-g{display:none}
+.empty{padding:48px 20px;text-align:center;color:var(--mute)}
+.list>.empty{border:0}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:0;width:min(860px,94vw);max-height:92vh}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+.dh{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.dh b{margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.db{padding:14px;display:grid;place-items:center;max-height:74vh;overflow:auto}
+.db img,.db video{max-width:100%;max-height:70vh;border-radius:8px}
+.db audio{width:100%}.db iframe{width:100%;height:70vh;border:0}
+.db pre{margin:0;width:100%;white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace}
+a.btn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;color:inherit;text-decoration:none}
+a.btn:hover{background:var(--hover)}
+@media (max-width:600px){.row{grid-template-columns:36px 1fr 70px}.row .date{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Archive</h1>
+    <input id="q" type="search" placeholder="Search all files" aria-label="Search all files">
+    <select id="sort" aria-label="Sort">
+      <option value="name">Name</option><option value="new">Newest</option>
+      <option value="old">Oldest</option><option value="size">Largest</option>
+    </select>
+    <button id="view" aria-label="Switch view">Grid</button>
+  </header>
+  <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
+  <main id="out"></main>
+</div>
+<dialog id="dlg">
+  <div class="dh"><b id="dt"></b><a class="btn" id="dl" download>Download</a><button id="dc">Close</button></div>
+  <div class="db" id="dbody"></div>
+</dialog>
+<script>
+const $=s=>document.querySelector(s);
+const EXT={image:'jpg jpeg png gif webp svg avif',audio:'mp3 wav flac ogg m4a aac',video:'mp4 webm mov mkv',doc:'pdf txt md doc docx rtf',zip:'zip rar 7z tar gz'};
+const kind=n=>{const e=n.split('.').pop().toLowerCase();for(const k in EXT)if(EXT[k].split(' ').includes(e))return k;return''};
+const ext=n=>n.includes('.')?n.split('.').pop().slice(0,4).toUpperCase():'FILE';
+const enc=p=>p.split('/').map(encodeURIComponent).join('/');
+const url=p=>'files/'+enc(p);
+const fmtSize=b=>b<1024?b+' B':b<1048576?(b/1024).toFixed(0)+' KB':b<1073741824?(b/1048576).toFixed(1)+' MB':(b/1073741824).toFixed(2)+' GB';
+const fmtDate=t=>new Date(t*1000).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let files=[],grid=false;
+try{grid=localStorage.getItem('view')==='grid'}catch(e){}
+
+const cwd=()=>decodeURIComponent(location.hash.slice(2)).replace(/\/$/,'');
+
+function listFolder(dir){
+  const pre=dir?dir+'/':'';const folders=new Map(),here=[];
+  for(const f of files){
+    if(!f.p.startsWith(pre))continue;
+    const rest=f.p.slice(pre.length),i=rest.indexOf('/');
+    if(i<0)here.push({...f,name:rest});
+    else{const n=rest.slice(0,i),o=folders.get(n)||{name:n,path:pre+n,count:0,m:0};o.count++;o.m=Math.max(o.m,f.m);folders.set(n,o)}
+  }
+  return{folders:[...folders.values()],here};
+}
+function sorter(){
+  const s=$('#sort').value;
+  return{name:(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}),new:(a,b)=>b.m-a.m,old:(a,b)=>a.m-b.m,size:(a,b)=>(b.s||0)-(a.s||0)}[s];
+}
+function icon(f){
+  if(f.folder)return`<div class="ico folder">DIR</div>`;
+  const k=kind(f.name);
+  if(grid&&k==='image')return`<div class="ico" data-k="image"><img loading="lazy" src="${url(f.p)}" alt=""></div>`;
+  return`<div class="ico" data-k="${k}">${ext(f.name)}</div>`;
+}
+function row(f){
+  const href=f.folder?`#/${enc(f.path)}`:url(f.p);
+  const sub=f.folder?`${f.count} file${f.count>1?'s':''}`:esc(f.p.includes('/')&&$('#q').value?f.p.slice(0,f.p.lastIndexOf('/')):'');
+  return`<a class="row" href="${href}" ${f.folder?'':`data-p="${esc(f.p)}"`}>
+    ${icon(f)}
+    <div><div class="name">${esc(f.name)}</div>${sub&&!f.folder?`<div class="sub">${sub}</div>`:''}</div>
+    <div class="meta">${f.folder?'':fmtSize(f.s)}</div>
+    <div class="meta date hide-g">${fmtDate(f.m)}</div></a>`;
+}
+function render(){
+  const q=$('#q').value.trim().toLowerCase(),dir=cwd(),cmp=sorter();
+  let folders=[],list=[];
+  if(q){list=files.filter(f=>f.p.toLowerCase().includes(q)).map(f=>({...f,name:f.p.split('/').pop()}))}
+  else{const r=listFolder(dir);folders=r.folders.map(f=>({...f,folder:true}));list=r.here}
+  folders.sort(cmp);list.sort(cmp);
+  const parts=dir?dir.split('/'):[];
+  $('#crumbs').innerHTML=q?`<span class="cur">${list.length} result${list.length===1?'':'s'}</span>`:
+    ['<a href="#/">Archive</a>',...parts.map((p,i)=>i===parts.length-1?`<span class="cur">${esc(p)}</span>`:`<a href="#/${enc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`)].join('<span>/</span>');
+  const all=[...folders,...list];
+  $('#out').className=grid?'grid':'list';
+  $('#out').innerHTML=all.length?all.map(row).join(''):`<div class="empty">${q?'No files match that search.':files.length?'This folder is empty.':'No files yet. Add files to the files folder and run build.py.'}</div>`;
+  $('#view').textContent=grid?'List':'Grid';
+}
+function preview(p){
+  const k=kind(p),u=url(p),name=p.split('/').pop(),b=$('#dbody');
+  $('#dt').textContent=name;$('#dl').href=u;$('#dl').setAttribute('download',name);
+  const e=name.split('.').pop().toLowerCase();
+  if(k==='image')b.innerHTML=`<img src="${u}" alt="${esc(name)}">`;
+  else if(k==='video')b.innerHTML=`<video src="${u}" controls autoplay></video>`;
+  else if(k==='audio')b.innerHTML=`<audio src="${u}" controls autoplay></audio>`;
+  else if(e==='pdf')b.innerHTML=`<iframe src="${u}"></iframe>`;
+  else if(['txt','md'].includes(e)){b.innerHTML='<pre></pre>';fetch(u).then(r=>r.text()).then(t=>b.firstChild.textContent=t)}
+  else{window.location=u;return}
+  $('#dlg').showModal();
+}
+$('#out').addEventListener('click',e=>{
+  const a=e.target.closest('a[data-p]');if(!a||e.metaKey||e.ctrlKey)return;
+  e.preventDefault();preview(a.dataset.p);
+});
+const stop=()=>{$('#dbody').innerHTML=''};
+$('#dlg').addEventListener('close',stop);
+$('#dc').onclick=()=>$('#dlg').close();
+$('#dlg').addEventListener('click',e=>{if(e.target===$('#dlg'))$('#dlg').close()});
+$('#q').oninput=render;$('#sort').onchange=render;
+$('#view').onclick=()=>{grid=!grid;try{localStorage.setItem('view',grid?'grid':'list')}catch(e){}render()};
+addEventListener('hashchange',()=>{$('#q').value='';render()});
+fetch('files.json').then(r=>r.json()).then(d=>{files=d;render()}).catch(()=>{
+  $('#out').innerHTML='<div class="empty">Could not load files.json. Run build.py, and serve this folder over http (not by opening the file directly).</div>';
+});
+</script>
+</body>
+</html>
